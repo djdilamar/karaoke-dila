@@ -1,0 +1,285 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Karaokê do Dila</title>
+  <script src="/socket.io/socket.io.js"></script>
+  <style>
+    body { font-family: sans-serif; text-align: center; padding: 15px; background: #f4f4f9; margin: 0; padding-bottom: 50px; }
+    input { width: 80%; padding: 12px; font-size: 16px; border-radius: 8px; border: 1px solid #ccc; margin-bottom: 10px; box-sizing: border-box; }
+    button.btn-busca { padding: 10px 20px; font-size: 16px; cursor: pointer; background: #333; color: white; border: none; border-radius: 8px; }
+    .resultado { background: white; padding: 12px; margin: 10px 0; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); text-align: left; }
+    .resultado button { background: #28a745; color: white; border: none; padding: 8px 12px; border-radius: 5px; cursor: pointer; float: right; }
+    
+    .painel-reacoes { background: white; padding: 15px; border-radius: 10px; margin-top: 15px; box-shadow: 0 2px 6px rgba(0,0,0,0.08); }
+    .secao-emoji h4 { margin: 0 0 10px 0; color: #444; font-size: 16px; }
+    .linha-emojis { display: flex; justify-content: center; gap: 8px; flex-wrap: wrap; }
+    .reacao-btn { font-size: 30px; cursor: pointer; background: none; border: 2px solid #eee; border-radius: 12px; padding: 10px; transition: all 0.2s; flex: 1; max-width: 65px; }
+    .reacao-btn:active { transform: scale(0.85); background: #f0f0f0; }
+    
+    /* ESTILOS DO NOVO PAINEL DE CONTROLES */
+    .painel-controles { background: white; padding: 15px; border-radius: 10px; margin-top: 15px; box-shadow: 0 2px 6px rgba(0,0,0,0.08); }
+    .painel-controles h4 { margin: 0 0 10px 0; color: #444; font-size: 16px; }
+    .botoes-lado-a-lado { display: flex; gap: 10px; margin-bottom: 10px; }
+    .btn-controle { flex: 1; padding: 12px; border: none; border-radius: 6px; font-weight: bold; font-size: 14px; cursor: pointer; color: white; transition: 0.3s; }
+    .btn-pular-celular { background: #e62117; color: white; border: none; padding: 12px 15px; font-size: 15px; border-radius: 6px; cursor: pointer; width: 100%; font-weight: bold; transition: 0.3s; margin-top: 0; }
+    
+    #tela-login { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: #1a1a1a; color: white; display: flex; flex-direction: column; justify-content: center; align-items: center; z-index: 9999; overflow: hidden; touch-action: none; }
+    
+    #video-logo-mobile { width: 90%; max-width: 350px; border-radius: 15px; margin-bottom: 20px; box-shadow: 0 0 20px rgba(255, 62, 62, 0.4); object-fit: cover; }
+
+    .botoes-surpresa { background: white; padding: 15px; border-radius: 10px; margin-top: 15px; box-shadow: 0 2px 6px rgba(0,0,0,0.08); }
+    .botoes-surpresa h4 { margin: 0 0 10px 0; color: #444; font-size: 16px; }
+    .btn-surpresa { display: none; width: 100%; padding: 12px; margin-bottom: 8px; font-size: 16px; font-weight: bold; color: white; border: none; border-radius: 8px; cursor: pointer; }
+    
+    .painel-fila-celular { background: #333; color: white; padding: 15px; border-radius: 10px; margin-top: 20px; text-align: left; box-shadow: 0 4px 10px rgba(0,0,0,0.2); }
+    .painel-fila-celular h4 { margin: 0 0 10px 0; color: #ffca28; font-size: 18px; text-align: center; border-bottom: 1px solid #555; padding-bottom: 10px; }
+    .item-fila-cel { background: #222; padding: 10px; border-radius: 6px; margin-bottom: 8px; border-left: 4px solid #555; }
+    .item-fila-cel.tocando { border-left: 4px solid #28a745; background: #1a2e1a; }
+    .item-fila-cel .nome { font-weight: bold; color: #ffca28; }
+    .item-fila-cel .musica { font-size: 0.85em; color: #bbb; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+    #btn-dj-engrenagem { position: fixed; bottom: 15px; right: 15px; font-size: 28px; cursor: pointer; z-index: 10000; opacity: 0.5; transition: all 0.4s ease; background: rgba(0,0,0,0.6); border-radius: 50%; padding: 10px; line-height: 1; }
+    #btn-dj-engrenagem:hover { opacity: 1; transform: rotate(90deg) scale(1.1); background: rgba(230, 33, 23, 0.9); box-shadow: 0 0 15px #ff0000; }
+
+    #modal-senha { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.85); z-index: 20000; display: none; justify-content: center; align-items: center; }
+    .modal-conteudo { background: #111; padding: 30px; border-radius: 10px; border: 2px solid #ff3e3e; text-align: center; box-shadow: 0 0 20px rgba(255, 62, 62, 0.5); width: 350px; max-width: 80%; }
+    .modal-conteudo h3 { color: #ffca28; margin-top: 0; font-size: 22px; }
+    .modal-conteudo p { color: #ddd; margin-bottom: 15px; }
+    .modal-conteudo input { width: 90%; padding: 15px; margin: 10px 0; font-size: 24px; text-align: center; border-radius: 5px; border: 1px solid #555; background: #222; color: white; letter-spacing: 5px; }
+    .botoes-modal { display: flex; justify-content: space-between; margin-top: 15px; gap: 10px; }
+    .modal-conteudo button { flex: 1; padding: 12px; font-size: 16px; font-weight: bold; cursor: pointer; background: #28a745; color: white; border: none; border-radius: 5px; transition: 0.2s; }
+    .modal-conteudo button:hover { opacity: 0.8; }
+    .modal-conteudo button.btn-cancelar { background: #dc3545; }
+  </style>
+</head>
+<body>
+
+  <div id="btn-dj-engrenagem" title="Painel Secreto do DJ" onclick="abrirDJ()">⚙️</div>
+
+  <div id="modal-senha">
+    <div class="modal-conteudo">
+      <h3>🔒 ÁREA DO DJ DILAMAR</h3>
+      <p>Introduza a senha de acesso:</p>
+      <input type="password" id="input-senha-dj" placeholder="********" onkeypress="verificarEnterSenha(event)">
+      <div class="botoes-modal">
+        <button class="btn-cancelar" onclick="fecharModalSenha()">Cancelar</button>
+        <button onclick="verificarSenha()">Acessar</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="tela-login">
+    <video id="video-logo-mobile" src="logo.mp4" autoplay loop muted playsinline></video>
+    <p>Para cantar diga seu nome:</p>
+    <input type="text" id="nome-cantor" placeholder="Seu nome ou apelido" onkeypress="verificarEnter(event)">
+    <button type="button" class="btn-busca" style="background:#e62117; margin-top: 5px;" onclick="entrar()">Entrar no Karaokê</button>
+  </div>
+  
+  <h3>Escolha sua música</h3>
+  <div>
+    <input type="text" id="campo-busca" placeholder="Ex: Evidências" onkeypress="verificarEnterBusca(event)">
+    <br>
+    <button type="button" class="btn-busca" style="margin-top: 5px;" onclick="pesquisar()">Procurar</button>
+  </div>
+
+  <div id="lista-resultados"></div>
+
+  <div id="caixa-surpresa" class="botoes-surpresa">
+    <h4>🎸 Tá sem ideia? Canta um clássico!</h4>
+    <button id="btn-sertanejo" class="btn-surpresa" style="background: #e65100;" onclick="sortearEstilo('sertanejo')">🤠 Sertanejo</button>
+    <button id="btn-pagode" class="btn-surpresa" style="background: #2e7d32;" onclick="sortearEstilo('pagode')">🥁 Pagode</button>
+    <button id="btn-mpb" class="btn-surpresa" style="background: #1565c0;" onclick="sortearEstilo('mpb')">🎼 MPB / Rock BR</button>
+    
+    <button id="btn-funk-classico" class="btn-surpresa" style="background: #8e24aa;" onclick="sortearEstilo('funk_classico')">🕶️ Funk Clássicos/Antigos</button>
+    <button id="btn-funk-atual" class="btn-surpresa" style="background: #e91e63;" onclick="sortearEstilo('funk_atual')">🔥 Funk Atuais</button>
+    
+    <button id="btn-pisadinha" class="btn-surpresa" style="background: #00acc1;" onclick="sortearEstilo('pisadinha')">🎹 Pisadinha</button>
+    <button id="btn-rasqueado" class="btn-surpresa" style="background: #d81b60;" onclick="sortearEstilo('rasqueado')">💃 Rasqueado e Lambadão</button>
+    <button id="btn-gospel" class="btn-surpresa" style="background: #fbc02d; color: black;" onclick="sortearEstilo('gospel')">🙌 Gospel</button>
+    <button id="btn-modao" class="btn-surpresa" style="background: #5d4037;" onclick="sortearEstilo('modao')">🐎 Modão das Antigas</button>
+  </div>
+
+  <div id="caixa-emojis-celular" class="painel-reacoes">
+    <div class="secao-emoji">
+      <h4>Reações ao Vivo</h4>
+      <div class="linha-emojis">
+        <button type="button" class="reacao-btn btn-emoji" onclick="mandarEmoji('👏')">👏</button>
+        <button type="button" class="reacao-btn btn-emoji" onclick="mandarEmoji('😍')">😍</button>
+        <button type="button" class="reacao-btn btn-emoji" onclick="mandarEmoji('🎉')">🎉</button>
+        <button type="button" class="reacao-btn btn-emoji" onclick="mandarEmoji('👎')">👎</button>
+        <button type="button" class="reacao-btn btn-emoji" onclick="mandarEmoji('🤮')">🤮</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- NOVO PAINEL DE CONTROLES DO KARAOKÊ -->
+  <div class="painel-controles">
+    <h4>Controles da TV</h4>
+    <div class="botoes-lado-a-lado">
+      <button type="button" class="btn-controle" style="background: #007bff;" onclick="playPause()">▶️/⏸️ Play/Pause</button>
+      <button type="button" class="btn-controle" style="background: #ff9800;" onclick="reiniciar()">🔄 Voltar Início</button>
+    </div>
+    <button type="button" id="btn-pular-celular" class="btn-pular-celular" onclick="pular()">⏭️ Pular Música Atual</button>
+  </div>
+
+  <div class="painel-fila-celular">
+    <h4>📋 Fila de Espera</h4>
+    <div id="fila-celular-lista">
+      <p style="text-align: center; color: #888; font-size: 14px;">A fila está vazia...</p>
+    </div>
+  </div>
+
+  <script>
+    let meuNome = "";
+    let socket;
+    let podeMandarEmoji = true; 
+    let modoSorteio = false;
+
+    const catalogo = {
+      sertanejo: ["Evidências", "Dormi na Praça", "Sinônimos", "Pense em Mim", "Choram as Rosas"],
+      pagode: ["Cheia de Manias", "Cilada", "Tá Escrito", "Deixa Acontecer", "Derê"],
+      mpb: ["Anna Júlia", "Pais e Filhos", "O Descobridor dos Sete Mares", "Malandragem", "Tempo Perdido"],
+      funk_classico: ["Nosso Sonho Claudinho e Buchecha", "Cerol na Mão", "Glamurosa", "Dança da Mãozinha", "Bonde do Tigrão", "Rap da Felicidade"],
+      funk_atual: ["Amor de Que Pabllo Vittar", "Tá OK DENNIS", "Tubarão Te Amo", "No Chão Novinha", "Vai Malandra"],
+      pisadinha: ["Tá Rocheda", "Letícia Zé Vaqueiro", "Basta Você Me Ligar", "Esquema Preferido", "Recairei"],
+      rasqueado: ["A Lua Banda Erre Som", "Vem Dançar Lambadão Chico Gil", "Toque de Mestre Lambadão", "Cabeça de Boi Rasqueado"],
+      gospel: ["Faz Um Milagre Em Mim", "Raridade Anderson Freire", "Galileu Fernandinho", "Sabor de Mel Damares", "Porque Ele Vive"],
+      modao: ["Boate Azul", "Telefone Mudo", "Ainda Ontem Chorei de Saudade", "Fio de Cabelo", "As Andorinhas"]
+    };
+
+    function abrirDJ() {
+      document.getElementById('modal-senha').style.display = 'flex';
+      const input = document.getElementById('input-senha-dj');
+      input.value = '';
+      input.focus();
+    }
+    function fecharModalSenha() { document.getElementById('modal-senha').style.display = 'none'; }
+    function verificarSenha() {
+      const senha = document.getElementById('input-senha-dj').value;
+      if (senha === "1411") {
+        window.location.href = "/admin.html";
+      } else {
+        alert("❌ ACESSO NEGADO! Senha incorreta.");
+        document.getElementById('input-senha-dj').value = '';
+        document.getElementById('input-senha-dj').focus();
+      }
+    }
+    function verificarEnterSenha(e) { if (e.key === 'Enter') verificarSenha(); }
+
+    function entrar() {
+      const campo = document.getElementById('nome-cantor');
+      if (campo && campo.value.trim().length > 0) {
+        meuNome = campo.value.trim();
+        document.getElementById('tela-login').style.display = 'none';
+      } else { alert("Por favor, diga o seu nome!"); }
+    }
+    function verificarEnter(e) { if (e.key === 'Enter') entrar(); }
+    function verificarEnterBusca(e) { if (e.key === 'Enter') pesquisar(); }
+    
+    try { socket = io(); } catch(err) {}
+
+    function pesquisar() {
+      const termo = document.getElementById('campo-busca').value;
+      if (termo && socket) {
+        modoSorteio = false;
+        document.getElementById('lista-resultados').innerHTML = "Buscando...";
+        socket.emit('pesquisar_musica', termo);
+      }
+    }
+
+    function sortearEstilo(estilo) {
+      if (!socket || !catalogo[estilo]) return;
+      let lista = catalogo[estilo];
+      modoSorteio = true; 
+      document.getElementById('lista-resultados').innerHTML = `<p style="color: #e62117;">🎲 Sorteando...</p>`;
+      socket.emit('pesquisar_musica', lista[Math.floor(Math.random() * lista.length)]);
+    }
+
+    if (socket) {
+      socket.on('atualizar_config', (c) => {
+        document.getElementById('caixa-emojis-celular').style.display = c.reacoesAtivas ? 'block' : 'none';
+        document.getElementById('btn-pular-celular').style.display = c.pularAtivo ? 'block' : 'none';
+        document.getElementById('caixa-surpresa').style.display = c.surpresaAtivo ? 'block' : 'none';
+        
+        document.getElementById('btn-sertanejo').style.display = c.estilos.sertanejo ? 'block' : 'none';
+        document.getElementById('btn-pagode').style.display = c.estilos.pagode ? 'block' : 'none';
+        document.getElementById('btn-mpb').style.display = c.estilos.mpb ? 'block' : 'none';
+        document.getElementById('btn-funk-classico').style.display = c.estilos.funk_classico ? 'block' : 'none';
+        document.getElementById('btn-funk-atual').style.display = c.estilos.funk_atual ? 'block' : 'none';
+        document.getElementById('btn-pisadinha').style.display = c.estilos.pisadinha ? 'block' : 'none';
+        document.getElementById('btn-rasqueado').style.display = c.estilos.rasqueado ? 'block' : 'none';
+        document.getElementById('btn-gospel').style.display = c.estilos.gospel ? 'block' : 'none';
+        document.getElementById('btn-modao').style.display = c.estilos.modao ? 'block' : 'none';
+      });
+
+      socket.on('resultados_pesquisa', (videos) => {
+        if (modoSorteio) {
+          modoSorteio = false;
+          if (videos.length > 0) {
+            adicionar(videos[0].videoId, videos[0].title.replace(/'/g, ""));
+            alert(`🎲 DESAFIO ACEITE! Você vai cantar: ${videos[0].title}`);
+          }
+          document.getElementById('lista-resultados').innerHTML = "";
+          return;
+        }
+        const caixa = document.getElementById('lista-resultados');
+        caixa.innerHTML = ''; 
+        videos.forEach(video => {
+          const div = document.createElement('div');
+          div.className = 'resultado';
+          div.innerHTML = `<strong>${video.title}</strong><button onclick="adicionar('${video.videoId}', '${video.title.replace(/'/g, "")}')">Cantar</button>`;
+          caixa.appendChild(div);
+        });
+      });
+
+      socket.on('atualizar_fila', (fila) => {
+        const caixaFila = document.getElementById('fila-celular-lista');
+        if (fila.length === 0) {
+          caixaFila.innerHTML = "<p style='text-align: center; color: #888; font-size: 14px;'>A fila está vazia...</p>";
+          return;
+        }
+        caixaFila.innerHTML = fila.map((item, index) => `
+          <div class="item-fila-cel ${index === 0 ? 'tocando' : ''}">
+            <div class="nome">${index === 0 ? '🎤 A CANTAR: ' : (index) + 'º - '}${item.cantor}</div>
+            <div class="musica">${item.title}</div>
+          </div>
+        `).join('');
+      });
+    }
+
+    function adicionar(id, titulo) {
+      if (socket) {
+        socket.emit('adicionar_musica', { videoId: id, title: titulo, cantor: meuNome });
+        document.getElementById('lista-resultados').innerHTML = '';
+        document.getElementById('campo-busca').value = '';
+      }
+    }
+
+    function mandarEmoji(emoji) {
+      if (!podeMandarEmoji) return;
+      if (socket) socket.emit('enviar_emoji', emoji);
+      podeMandarEmoji = false;
+      setTimeout(() => podeMandarEmoji = true, 300);
+    }
+
+    // NOVOS COMANDOS DE MÍDIA
+    function playPause() {
+      if (socket) socket.emit('controle_play_pause');
+    }
+
+    function reiniciar() {
+      if (confirm("Deseja voltar a música do início?")) {
+        if (socket) socket.emit('controle_reiniciar');
+      }
+    }
+
+    function pular() { 
+      if (confirm("Deseja mesmo pular a música atual?")) { 
+        if (socket) socket.emit('musica_terminou', true); 
+      } 
+    }
+  </script>
+</body>
+</html>

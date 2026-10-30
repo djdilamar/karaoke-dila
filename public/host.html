@@ -1,0 +1,461 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+  <meta charset="UTF-8">
+  <title>Karaokê do Dila</title>
+  <script src="/socket.io/socket.io.js"></script>
+  <style>
+    body { background-color: #000; color: white; font-family: sans-serif; overflow: hidden; margin: 0; display: flex; height: 100vh; }
+    
+    #tela-desbloqueio { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.95); z-index: 9999; display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center; cursor: pointer; }
+    #tela-desbloqueio h1 { color: #ff3e3e; font-size: 50px; text-shadow: 0 0 20px #ff3e3e; margin-bottom: 10px; }
+    #tela-desbloqueio p { color: #ccc; font-size: 24px; }
+    
+    #painel-fila { width: 320px; background: #111; border-right: 2px solid rgba(255, 255, 255, 0.1); display: flex; flex-direction: column; z-index: 20; position: relative; }
+    #cabecalho-fila { padding: 20px 20px 0 20px; }
+    #cabecalho-fila h2 { margin-top: 0; color: #ff3e3e; border-bottom: 1px solid rgba(255, 255, 255, 0.2); padding-bottom: 10px; }
+    #lista-fila { flex: 1; padding: 0 20px; overflow-y: auto; }
+    .item-fila { background: rgba(255, 255, 255, 0.1); padding: 10px; border-radius: 8px; margin-bottom: 10px; text-align: left; }
+    .item-fila .cantor-nome { color: #ffca28; font-weight: bold; font-size: 1.1em; }
+    .item-fila .musica-titulo { color: #ddd; font-size: 0.9em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    
+    .aviso-repetida-tv { display: inline-block; background: #ff9800; color: #000; font-size: 0.75em; font-weight: bold; padding: 3px 8px; border-radius: 4px; margin-top: 6px; text-transform: uppercase; }
+
+    #caixa-qr { background: rgba(0, 0, 0, 0.5); padding: 20px; text-align: center; border-top: 2px solid rgba(255, 255, 255, 0.1); display: none; }
+    #caixa-qr h4 { margin: 0 0 10px 0; font-size: 1.1em; color: #fff; }
+    #imagem-qr { width: 140px; border-radius: 10px; background: white; padding: 5px; }
+
+    #conteudo-principal { flex: 1; position: relative; background: #000; display: flex; flex-direction: column; }
+
+    #tela-espera { position: absolute; top: 0; left: 0; width: 100%; height: 100%; display: flex; flex-direction: column; justify-content: center; align-items: center; z-index: 5; }
+    .titulo-neon-gigante { font-size: 65px; margin-bottom: 15px; color: #fff; text-align: center; text-shadow: 0 0 10px #fff, 0 0 20px #fff, 0 0 40px #ff0000, 0 0 60px #ff0000, 0 0 80px #ff0000; animation: piscar 1.5s infinite alternate; margin-top: -50px; }
+    .subtitulo { font-size: 24px; color: #aaa; background: rgba(0,0,0,0.5); padding: 10px 20px; border-radius: 10px; margin-bottom: 25px; }
+    
+    #qr-centro { background: white; padding: 15px; border-radius: 15px; display: inline-block; box-shadow: 0 0 30px rgba(255, 62, 62, 0.3); margin-bottom: 25px; }
+    #qr-centro img { width: 220px; height: 220px; display: block; }
+
+    #caixa-relogio { text-align: center; }
+    #hora-atual { font-size: 60px; color: #ffca28; font-weight: bold; letter-spacing: 2px; text-shadow: 0 0 10px rgba(255, 202, 40, 0.5); margin: 0; }
+    #data-atual { font-size: 22px; color: #ccc; margin-top: 5px; text-transform: none; }
+    
+    /* TELA DE PREPARAÇÃO / CONTAGEM REGRESSIVA */
+    #tela-preparacao { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: #0a0a0a; display: none; flex-direction: column; justify-content: center; align-items: center; z-index: 50; text-align: center; }
+    #tela-preparacao .titulo-preparacao { font-size: 24px; letter-spacing: 3px; color: #aaa; text-transform: uppercase; margin-bottom: 30px; }
+    #tela-preparacao .circulo-contador { width: 140px; height: 140px; border-radius: 50%; border: 4px solid #ff3e3e; display: flex; justify-content: center; align-items: center; font-size: 65px; font-weight: bold; color: #ffca28; box-shadow: 0 0 25px rgba(255, 62, 62, 0.5); margin-bottom: 35px; animation: pulso 1s infinite alternate; }
+    #tela-preparacao .info-proximo { background: rgba(255, 255, 255, 0.05); padding: 15px 35px; border-radius: 50px; border: 1px solid rgba(255, 255, 255, 0.1); font-size: 26px; color: #fff; max-width: 80%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    #tela-preparacao .info-proximo span { color: #ffca28; font-weight: bold; }
+
+    @keyframes pulso { 0% { transform: scale(1); } 100% { transform: scale(1.05); } }
+    @keyframes piscar { 0% { text-shadow: 0 0 5px #fff, 0 0 10px #fff, 0 0 20px #ff0000, 0 0 30px #ff0000; } 100% { text-shadow: 0 0 2px #fff, 0 0 5px #fff, 0 0 10px #ff0000, 0 0 15px #ff0000; } }
+
+    #caixa-player { width: 100%; height: 100%; position: relative; z-index: 6; display: none; }
+    #player { width: 100%; height: 100%; border: none; }
+
+    #overlay-cantor { position: absolute; top: 20px; left: 20px; background: rgba(0, 0, 0, 0.8); padding: 12px 20px; border-radius: 8px; font-size: 22px; font-weight: bold; border-left: 5px solid #ff3e3e; display: none; z-index: 10; }
+    
+    #btn-dj-engrenagem { position: absolute; bottom: 15px; left: 15px; font-size: 28px; cursor: pointer; z-index: 10000; opacity: 0.3; transition: all 0.4s ease; background: rgba(0,0,0,0.6); border-radius: 50%; padding: 10px; line-height: 1; }
+    #btn-dj-engrenagem:hover { opacity: 1; transform: rotate(90deg) scale(1.1); background: rgba(230, 33, 23, 0.9); box-shadow: 0 0 15px #ff0000; }
+
+    #modal-senha { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.85); z-index: 20000; display: none; justify-content: center; align-items: center; }
+    .modal-conteudo { background: #111; padding: 30px; border-radius: 10px; border: 2px solid #ff3e3e; text-align: center; box-shadow: 0 0 20px rgba(255, 62, 62, 0.5); width: 350px; }
+    .modal-conteudo h3 { color: #ffca28; margin-top: 0; font-size: 22px; }
+    .modal-conteudo p { color: #ddd; margin-bottom: 15px; }
+    .modal-conteudo input { width: 90%; padding: 15px; margin: 10px 0; font-size: 24px; text-align: center; border-radius: 5px; border: 1px solid #555; background: #222; color: white; letter-spacing: 5px; }
+    .botoes-modal { display: flex; justify-content: space-between; margin-top: 15px; gap: 10px; }
+    .modal-conteudo button { flex: 1; padding: 12px; font-size: 16px; font-weight: bold; cursor: pointer; background: #28a745; color: white; border: none; border-radius: 5px; transition: 0.2s; }
+    .modal-conteudo button:hover { opacity: 0.8; }
+    .modal-conteudo button.btn-cancelar { background: #dc3545; }
+
+    .emoji-flutuante { position: fixed; bottom: -60px; font-size: 65px; pointer-events: none; animation: subir 3s ease-in-out forwards; z-index: 999999; }
+    @keyframes subir { 0% { transform: translateY(0) scale(1); opacity: 1; } 100% { transform: translateY(-110vh) scale(1.5); opacity: 0; } }
+    
+    /* ESTILOS DO VISUALIZADOR (CANVAS) */
+    .visualizador {
+      position: absolute; 
+      bottom: 20px; 
+      left: 0; 
+      width: 100%; 
+      height: 150px; 
+      z-index: 5;
+      opacity: 0; 
+      pointer-events: none; 
+      transition: opacity 1s ease;
+    }
+  </style>
+</head>
+<body>
+
+  <audio id="audio-fundo" src="" crossorigin="anonymous"></audio>
+
+  <div id="tela-desbloqueio" onclick="iniciarSistema()">
+    <h1>🔴 CLIQUE AQUI PARA ATIVAR O SISTEMA</h1>
+    <p>Isto autoriza o Chrome a tocar as músicas automaticamente.</p>
+  </div>
+
+  <div id="btn-dj-engrenagem" title="Painel Secreto do DJ" onclick="abrirDJ()">⚙️</div>
+
+  <div id="modal-senha">
+    <div class="modal-conteudo">
+      <h3>🔒 ÁREA DO DJ DILAMAR</h3>
+      <p>Introduza a senha de acesso:</p>
+      <input type="password" id="input-senha-dj" placeholder="********" onkeypress="verificarEnterSenha(event)">
+      <div class="botoes-modal">
+        <button class="btn-cancelar" onclick="fecharModalSenha()">Cancelar</button>
+        <button onclick="verificarSenha()">Acessar</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="painel-fila">
+    <div id="cabecalho-fila"><h2>🎤 Próximos Cantores</h2></div>
+    <div id="lista-fila">Fila vazia no momento...</div>
+    
+    <div id="caixa-qr">
+      <h4>Cante Agora!</h4>
+      <img id="imagem-qr" src="https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=http://192.168.0.52:3000/celular.html" alt="QR Code">
+    </div>
+  </div>
+
+  <div id="conteudo-principal">
+    <div id="overlay-cantor">🎤 Aguardando cantores...</div>
+    
+    <div id="tela-espera">
+      <h1 class="titulo-neon-gigante">🎤 Karaokê do Dila 🎶</h1>
+      <p class="subtitulo">Aponte a camera do seu smartphone para o QR code e adicione uma musica para cantar!</p>
+      
+      <div id="qr-centro">
+        <img src="https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=http://192.168.0.52:3000/celular.html" alt="QR Code Centro">
+      </div>
+
+      <div id="caixa-relogio">
+        <p id="hora-atual">00:00:00</p>
+        <p id="data-atual">Terça-feira, 27 de Outubro de 2026</p>
+      </div>
+    </div>
+
+    <div id="tela-preparacao">
+      <div class="titulo-preparacao">A PRÓXIMA MÚSICA COMEÇA EM</div>
+      <div class="circulo-contador" id="num-contador">10</div>
+      <div class="info-proximo">🎵 <span id="nome-proximo-cantor">Cantor</span> - <span id="nome-proxima-musica">Música</span></div>
+    </div>
+    
+    <div id="caixa-player">
+      <div id="player"></div>
+    </div>
+  </div>
+
+  <!-- TELA DE DESENHO PREMIUM -->
+  <canvas id="visualizador" class="visualizador"></canvas>
+
+  <script>
+    const socket = io();
+    let musicaA_Tocar = null;
+    let player;
+    let playerPronto = false;
+    let intervaloContagem = null;
+    let emPreparacao = false; 
+
+    const playlistEspera = [
+      'musicas_espera/musica1.mp3', 'musicas_espera/musica2.mp3', 'musicas_espera/musica3.mp3',
+      'musicas_espera/musica4.mp3', 'musicas_espera/musica5.mp3', 'musicas_espera/musica6.mp3',
+      'musicas_espera/musica7.mp3', 'musicas_espera/musica8.mp3', 'musicas_espera/musica9.mp3',
+      'musicas_espera/musica10.mp3', 'musicas_espera/musica11.mp3', 'musicas_espera/musica12.mp3',
+      'musicas_espera/musica13.mp3', 'musicas_espera/musica14.mp3', 'musicas_espera/musica15.mp3'
+    ];
+
+    const audioFundo = document.getElementById('audio-fundo');
+    audioFundo.volume = 0.3;
+
+    function tocarMusicaFundoAleatoria() {
+      if (!audioFundo.paused && audioFundo.currentTime > 0) return;
+      const faixaSorteada = playlistEspera[Math.floor(Math.random() * playlistEspera.length)];
+      audioFundo.src = faixaSorteada;
+      
+      audioFundo.play().then(() => {
+        iniciarAnalisadorAudio();
+      }).catch(e => console.log("Aguardando interação:", e));
+    }
+
+    audioFundo.addEventListener('ended', () => { tocarMusicaFundoAleatoria(); });
+
+    function atualizarRelogio() {
+      const agora = new Date();
+      const horas = String(agora.getHours()).padStart(2, '0');
+      const minutos = String(agora.getMinutes()).padStart(2, '0');
+      const segundos = String(agora.getSeconds()).padStart(2, '0');
+      document.getElementById('hora-atual').innerText = `${horas}:${minutos}:${segundos}`;
+
+      const diaSemana = agora.toLocaleDateString('pt-BR', { weekday: 'long' });
+      const diaSemanaFormatado = diaSemana.charAt(0).toUpperCase() + diaSemana.slice(1);
+      const dia = String(agora.getDate()).padStart(2, '0');
+      const mes = agora.toLocaleDateString('pt-BR', { month: 'long' });
+      const mesFormatado = mes.charAt(0).toUpperCase() + mes.slice(1);
+      const ano = agora.getFullYear();
+
+      document.getElementById('data-atual').innerText = `${diaSemanaFormatado}, ${dia} de ${mesFormatado} de ${ano}`;
+    }
+    setInterval(atualizarRelogio, 1000);
+    atualizarRelogio(); 
+
+    function abrirDJ() {
+      document.getElementById('modal-senha').style.display = 'flex';
+      const input = document.getElementById('input-senha-dj');
+      input.value = '';
+      input.focus();
+    }
+    function fecharModalSenha() { document.getElementById('modal-senha').style.display = 'none'; }
+    function verificarSenha() {
+      const senha = document.getElementById('input-senha-dj').value;
+      if (senha === "1411") {
+        window.open("/admin.html", "_blank");
+        fecharModalSenha();
+      } else {
+        alert("❌ ACESSO NEGADO! Senha incorreta.");
+        document.getElementById('input-senha-dj').value = '';
+        document.getElementById('input-senha-dj').focus();
+      }
+    }
+    function verificarEnterSenha(e) { if (e.key === 'Enter') verificarSenha(); }
+
+    function iniciarSistema() {
+      document.getElementById('tela-desbloqueio').style.display = 'none';
+      if (!musicaA_Tocar) tocarMusicaFundoAleatoria();
+      const tag = document.createElement('script');
+      tag.src = "https://www.youtube.com/iframe_api";
+      const firstScriptTag = document.getElementsByTagName('script')[0];
+      firstScriptTag.parentNode.insertBefore(tag, firstScriptTag);
+    }
+
+    function onYouTubeIframeAPIReady() {
+      player = new YT.Player('player', {
+        height: '100%', width: '100%', videoId: '',
+        playerVars: { 'autoplay': 1, 'controls': 1, 'rel': 0 },
+        events: { 'onReady': onPlayerReady, 'onStateChange': onPlayerStateChange, 'onError': onPlayerError }
+      });
+    }
+
+    function onPlayerReady(event) { playerPronto = true; }
+
+    function onPlayerStateChange(event) { 
+      if (event.data === YT.PlayerState.ENDED && !emPreparacao) {
+        socket.emit('musica_terminou', false);
+      } 
+    }
+    function onPlayerError(event) { setTimeout(() => { if (!emPreparacao) socket.emit('musica_terminou', false); }, 2000); }
+
+    function iniciarContagemEPlay(proximoItem, tempoSegundos) {
+      if (intervaloContagem) clearInterval(intervaloContagem);
+      emPreparacao = true; 
+
+      if (playerPronto && player && typeof player.stopVideo === 'function') {
+        try { player.stopVideo(); } catch(e) {}
+      }
+
+      const telaEspera = document.getElementById('tela-espera');
+      const telaPrep = document.getElementById('tela-preparacao');
+      const caixaPlayer = document.getElementById('caixa-player');
+      const overlayCantor = document.getElementById('overlay-cantor');
+      const caixaQrLateral = document.getElementById('caixa-qr');
+      const numContador = document.getElementById('num-contador');
+
+      document.getElementById('nome-proximo-cantor').innerText = proximoItem.cantor;
+      document.getElementById('nome-proxima-musica').innerText = proximoItem.title;
+
+      telaEspera.style.display = 'none';
+      caixaPlayer.style.display = 'none';
+      overlayCantor.style.display = 'none';
+      caixaQrLateral.style.display = 'block';
+      telaPrep.style.display = 'flex';
+
+      let segundosRestantes = tempoSegundos || 10;
+      numContador.innerText = segundosRestantes;
+
+      intervaloContagem = setInterval(() => {
+        segundosRestantes--;
+        numContador.innerText = segundosRestantes;
+
+        if (segundosRestantes <= 0) {
+          clearInterval(intervaloContagem);
+          intervaloContagem = null;
+
+          telaPrep.style.display = 'none';
+          overlayCantor.innerText = "🎤 " + proximoItem.cantor + " está cantando agora!";
+          overlayCantor.style.display = 'block';
+          caixaPlayer.style.display = 'block';
+
+          audioFundo.pause();
+          audioFundo.currentTime = 0;
+          pararVisualizador(); 
+
+          emPreparacao = false; 
+          if (playerPronto && player) player.loadVideoById(proximoItem.videoId);
+        }
+      }, 1000);
+    }
+
+    socket.on('comando_play_pause', () => {
+      if (playerPronto && player && typeof player.getPlayerState === 'function') {
+        const estado = player.getPlayerState();
+        if (estado === YT.PlayerState.PLAYING) {
+          player.pauseVideo();
+        } else {
+          player.playVideo();
+        }
+      }
+    });
+
+    socket.on('comando_reiniciar', () => {
+      if (playerPronto && player && typeof player.seekTo === 'function') {
+        player.seekTo(0);
+        player.playVideo();
+      }
+    });
+
+    socket.on('atualizar_fila', (fila, foiPulo) => {
+      const painelFila = document.getElementById('lista-fila');
+      const overlayCantor = document.getElementById('overlay-cantor');
+      const caixaPlayer = document.getElementById('caixa-player');
+      const telaEspera = document.getElementById('tela-espera');
+      const telaPrep = document.getElementById('tela-preparacao');
+      const caixaQrLateral = document.getElementById('caixa-qr');
+      
+      if (fila.length === 0) {
+        if (intervaloContagem) clearInterval(intervaloContagem);
+        emPreparacao = false;
+
+        painelFila.innerHTML = "<p style='color: #888; margin-top: 20px;'>Fila vazia no momento...</p>";
+        overlayCantor.style.display = 'none';
+        caixaPlayer.style.display = 'none';
+        telaPrep.style.display = 'none';
+        telaEspera.style.display = 'flex';
+        caixaQrLateral.style.display = 'none';
+        musicaA_Tocar = null;
+        
+        if (playerPronto && player) player.stopVideo();
+        tocarMusicaFundoAleatoria(); 
+
+      } else {
+        painelFila.innerHTML = fila.map((item, index) => `
+          <div class="item-fila" style="${index === 0 ? 'border: 1px solid #ff3e3e; background: rgba(255,62,62,0.2);' : ''}">
+            <div class="cantor-nome">${index === 0 ? '▶ Cantando: ' : (index + 1) + '. '}${item.cantor}</div>
+            <div class="musica-titulo">${item.title}</div>
+            ${item.repetida ? '<div class="aviso-repetida-tv">⚠️ Já cantada hoje</div>' : ''}
+          </div>
+        `).join('');
+
+        if (musicaA_Tocar !== fila[0].videoId) {
+          musicaA_Tocar = fila[0].videoId;
+          const tempo = (foiPulo === true) ? 5 : 10;
+          iniciarContagemEPlay(fila[0], tempo);
+        }
+      }
+    });
+
+    socket.on('mostrar_emoji', (emoji) => {
+      const novoEmoji = document.createElement('div');
+      novoEmoji.innerText = emoji;
+      novoEmoji.classList.add('emoji-flutuante');
+      novoEmoji.style.left = Math.random() * 60 + 30 + '%';
+      document.body.appendChild(novoEmoji); 
+      setTimeout(() => novoEmoji.remove(), 3000);
+    });
+
+    // --- LÓGICA DO VISUALIZADOR DE ONDA PREMIUM (NEON + FADE LATORAL + SUAVIZAÇÃO) ---
+    const canvasVisualizador = document.getElementById('visualizador');
+    const ctxVisualizador = canvasVisualizador.getContext('2d');
+    let audioCtx, analyser, dataArray, source, animacaoFrame;
+
+    function redimensionarCanvas() {
+        const conteudoPrincipal = document.getElementById('conteudo-principal');
+        canvasVisualizador.width = conteudoPrincipal.clientWidth; 
+        canvasVisualizador.height = 150; 
+    }
+    window.addEventListener('resize', redimensionarCanvas);
+    setTimeout(redimensionarCanvas, 500); 
+
+    function iniciarAnalisadorAudio() {
+        if (!audioCtx) {
+            try {
+                audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                analyser = audioCtx.createAnalyser();
+                source = audioCtx.createMediaElementSource(audioFundo);
+                source.connect(analyser);
+                analyser.connect(audioCtx.destination);
+                analyser.fftSize = 1024; // Reduzido ligeiramente para a onda dançar de forma mais orgânica
+                dataArray = new Uint8Array(analyser.frequencyBinCount);
+            } catch(e) {
+                console.log("Erro ao iniciar analisador de áudio:", e);
+                return;
+            }
+        }
+        if (audioCtx.state === 'suspended') audioCtx.resume();
+        animarLinhaContinua();
+    }
+
+    function animarLinhaContinua() {
+        canvasVisualizador.style.opacity = '1';
+        animacaoFrame = requestAnimationFrame(animarLinhaContinua);
+        
+        if (analyser && dataArray) {
+            analyser.getByteTimeDomainData(dataArray);
+            
+            // Limpa o frame anterior para dar espaço ao novo
+            ctxVisualizador.clearRect(0, 0, canvasVisualizador.width, canvasVisualizador.height);
+            
+            // UPGRADE 1: EFEITO NEON BRILHANTE
+            ctxVisualizador.shadowBlur = 15;
+            ctxVisualizador.shadowColor = '#ff3e3e';
+            ctxVisualizador.lineWidth = 4;
+            
+            // UPGRADE 2: FADE OUT LATERAL (A onda some suavemente nas bordas)
+            const gradiente = ctxVisualizador.createLinearGradient(0, 0, canvasVisualizador.width, 0);
+            gradiente.addColorStop(0, 'rgba(255, 62, 62, 0)');    // 100% transparente na esquerda
+            gradiente.addColorStop(0.15, '#ff3e3e');              // Fica sólida e acesa
+            gradiente.addColorStop(0.85, '#ff3e3e');              // Continua sólida e acesa
+            gradiente.addColorStop(1, 'rgba(255, 62, 62, 0)');    // 100% transparente na direita
+            
+            ctxVisualizador.strokeStyle = gradiente;
+            ctxVisualizador.beginPath();
+            
+            const larguraFatia = canvasVisualizador.width * 1.0 / analyser.frequencyBinCount;
+            let x = 0;
+            let prevY = canvasVisualizador.height / 2;
+            
+            for (let i = 0; i < analyser.frequencyBinCount; i++) {
+                const valorBruto = dataArray[i] / 128.0; 
+                let y = valorBruto * (canvasVisualizador.height / 2);
+                
+                // Força as pontas (início e fim) a ficarem perfeitamente alinhadas no meio da tela
+                const distanciaDoCentro = Math.abs((i / analyser.frequencyBinCount) - 0.5) * 2;
+                const atenuacaoBorda = Math.max(0, 1 - Math.pow(distanciaDoCentro, 4));
+                const yCentralizado = canvasVisualizador.height / 2;
+                
+                // Mistura a batida real com o alinhamento central nas bordas
+                y = yCentralizado + ((y - yCentralizado) * atenuacaoBorda);
+
+                if (i === 0) {
+                    ctxVisualizador.moveTo(x, y);
+                } else {
+                    // UPGRADE 3: CURVAS SUAVES EM VEZ DE ZIG-ZAG ROBÓTICO
+                    const xc = (x + (x - larguraFatia)) / 2;
+                    const yc = (y + prevY) / 2;
+                    ctxVisualizador.quadraticCurveTo(x - larguraFatia, prevY, xc, yc);
+                }
+                
+                prevY = y;
+                x += larguraFatia;
+            }
+            
+            ctxVisualizador.lineTo(canvasVisualizador.width, canvasVisualizador.height / 2);
+            ctxVisualizador.stroke();
+        }
+    }
+
+    function pararVisualizador() {
+        canvasVisualizador.style.opacity = '0';
+        if (animacaoFrame) cancelAnimationFrame(animacaoFrame);
+        ctxVisualizador.clearRect(0, 0, canvasVisualizador.width, canvasVisualizador.height);
+    }
+  </script>
+</body>
+</html>

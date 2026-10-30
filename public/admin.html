@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Mesa do DJ Dilamar</title>
+  <script src="/socket.io/socket.io.js"></script>
+  <style>
+    body { background-color: #121212; color: white; font-family: sans-serif; padding: 20px; margin: 0; display: flex; flex-direction: column; height: 100vh; box-sizing: border-box; }
+    .header-pc { color: #ffca28; text-align: center; border-bottom: 2px solid #333; padding-bottom: 10px; margin-top: 0; }
+    .header-mobile { display: none; } 
+    .bottom-nav { display: none; } 
+
+    h2, .titulo-secao { color: #fff; font-size: 1.2em; border-bottom: 1px solid #444; padding-bottom: 10px; margin-top: 0; margin-bottom: 15px; }
+
+    .layout-colunas { display: flex; gap: 20px; flex: 1; overflow: hidden; }
+    .coluna { flex: 1; background: #1a1a1a; padding: 20px; border-radius: 10px; border: 1px solid #333; display: flex; flex-direction: column; overflow-y: auto; }
+    .coluna.central { flex: 1.5; border: 1px solid #ff3e3e; }
+
+    .painel-controles { display: flex; gap: 10px; margin-bottom: 20px; }
+    button.btn-acao { padding: 12px; font-size: 14px; font-weight: bold; border: none; border-radius: 8px; cursor: pointer; color: white; flex: 1; transition: 0.2s; }
+    button.btn-acao:active { transform: scale(0.95); }
+    .btn-pular { background-color: #e62117; }
+    .btn-limpar { background-color: #ff9800; }
+
+    .item-fila { background: #222; padding: 12px; margin-bottom: 10px; border-radius: 8px; display: flex; justify-content: space-between; align-items: center; border-left: 4px solid #555; }
+    .item-fila.tocando { border-left: 4px solid #28a745; background: #1a2e1a; }
+    .item-fila.repetida { border-right: 4px solid #ff9800; } 
+    .info-musica { flex: 1; overflow: hidden; }
+    .nome-cantor { color: #ffca28; font-weight: bold; font-size: 1.1em; }
+    .nome-musica { color: #ccc; font-size: 0.85em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .aviso-rep { color: #ff9800; font-size: 0.8em; font-weight: bold; display: block; margin-top: 4px; }
+    .btn-remover { background: #dc3545; color: white; border: none; padding: 8px 12px; font-size: 12px; border-radius: 5px; cursor: pointer; flex: none; margin-left: 10px; }
+
+    .config-card { display: flex; justify-content: space-between; align-items: center; background: #222; padding: 15px; border-radius: 8px; margin-bottom: 10px; border: 1px solid #333; }
+    .config-info { flex: 1; text-align: left; }
+    .config-titulo { font-size: 14px; color: #fff; font-weight: bold; margin-bottom: 3px; }
+    .config-sub { font-size: 12px; color: #888; }
+    .btn-toggle { padding: 8px 15px; border-radius: 20px; border: none; font-weight: bold; cursor: pointer; color: white; width: 100px; transition: 0.3s; text-align: center; }
+    .btn-toggle.ativo { background-color: #28a745; }
+    .btn-toggle.inativo { background-color: #dc3545; }
+
+    .sub-ritmos { border-left: 2px solid #555; margin-left: 15px; padding-left: 15px; margin-bottom: 15px; }
+    .sub-linha { display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-bottom: 1px dashed #333; }
+    .sub-linha .config-titulo { font-size: 13px; color: #ccc; font-weight: normal; margin: 0; }
+    .sub-linha .btn-toggle { padding: 5px 10px; font-size: 11px; width: 80px; }
+
+    @media (max-width: 850px) {
+      body { padding: 0; height: 100vh; overflow: hidden; background-color: #121212; }
+      
+      .header-pc { display: none; } 
+      .header-mobile { display: block; background: #1a1a1a; padding: 15px; text-align: center; border-bottom: 1px solid #333; position: sticky; top: 0; z-index: 100; }
+      .header-mobile h1 { margin: 0; color: #ffca28; font-size: 20px; }
+
+      .layout-colunas { display: block; flex: 1; padding: 15px; padding-bottom: 130px; overflow-y: auto; }
+      
+      .coluna { border: none; background: transparent; padding: 0; max-height: none; margin-bottom: 0; border-radius: 0; display: none; }
+      .coluna.active { display: block; animation: fade 0.3s ease; }
+      @keyframes fade { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+
+      .painel-controles { flex-direction: column; gap: 10px; }
+      .btn-acao { width: 100%; padding: 15px; font-size: 16px; border-radius: 10px; }
+      .btn-remover { padding: 10px 15px; font-size: 14px; border-radius: 8px; }
+
+      .config-card { border-radius: 12px; padding: 15px; margin-bottom: 15px; }
+      .config-titulo { font-size: 15px; }
+      .sub-linha { padding: 10px 0; }
+      .sub-linha .btn-toggle { font-size: 13px; width: 85px; padding: 8px 10px; }
+
+      .bottom-nav { display: flex; position: fixed; bottom: 0; left: 0; width: 100%; background: #111; border-top: 1px solid #333; z-index: 100; padding-bottom: env(safe-area-inset-bottom); }
+      .nav-btn { flex: 1; padding: 12px 0; background: transparent; border: none; color: #888; font-size: 12px; font-weight: bold; display: flex; flex-direction: column; align-items: center; gap: 5px; cursor: pointer; }
+      .nav-btn.active { color: #ff3e3e; }
+      .nav-icon { font-size: 22px; }
+    }
+  </style>
+</head>
+<body>
+
+  <h1 class="header-pc">🎛️ Mesa do DJ Dilamar</h1>
+
+  <div class="header-mobile">
+    <h1>🎛️ Mesa DJ Dilamar</h1>
+  </div>
+
+  <div class="layout-colunas">
+    
+    <div class="coluna tab-section" id="aba-historico">
+      <div class="titulo-secao">📜 Já Cantadas Hoje</div>
+      <div id="lista-historico"><p style="text-align:center; color: #666;">Nenhuma música cantada ainda.</p></div>
+    </div>
+
+    <div class="coluna central tab-section active" id="aba-fila">
+      <div class="titulo-secao">🎤 Fila de Cantores</div>
+      <div class="painel-controles">
+        <button class="btn-acao btn-pular" onclick="pularAtual()">⏭️ Forçar Pulo da Música Atual</button>
+        <button class="btn-acao btn-limpar" onclick="limparFila()">🧹 Limpar Toda a Fila</button>
+      </div>
+      <div id="lista-admin">A carregar fila...</div>
+    </div>
+
+    <div class="coluna tab-section" id="aba-config">
+      <div class="titulo-secao">⚙️ Configurações Gerais</div>
+      
+      <div class="config-card">
+        <div class="config-info"><div class="config-titulo">Desativar "Já cantada hoje"</div><div class="config-sub">Desativa o alerta de músicas repetidas</div></div>
+        <button id="btn-alerta" class="btn-toggle ativo" onclick="socket.emit('toggle_alerta')">Ativado</button>
+      </div>
+      <div class="config-card">
+        <div class="config-info"><div class="config-titulo">Reações ao Vivo (Emojis)</div><div class="config-sub">Ativa/desativa emojis no celular</div></div>
+        <button id="btn-reacoes" class="btn-toggle ativo" onclick="socket.emit('toggle_reacoes')">Ativado</button>
+      </div>
+      <div class="config-card">
+        <div class="config-info"><div class="config-titulo">Botão "Pular Música"</div><div class="config-sub">Deixa o usuário pular a própria música</div></div>
+        <button id="btn-pular-config" class="btn-toggle ativo" onclick="socket.emit('toggle_pular')">Ativado</button>
+      </div>
+      
+      <div class="titulo-secao">🎲 Modo "Tá Sem Ideia?"</div>
+      <div class="config-card" style="border-color: #ff9800;">
+        <div class="config-info"><div class="config-titulo" style="color: #ffca28;">Ligar Botões Surpresa</div></div>
+        <button id="btn-surpresa" class="btn-toggle ativo" onclick="socket.emit('toggle_surpresa')">Ativado</button>
+      </div>
+      
+      <div class="sub-ritmos" id="painel-sub-ritmos">
+        <div class="sub-linha"><div class="config-titulo">Sertanejo</div><button id="estilo-sertanejo" class="btn-toggle ativo" onclick="socket.emit('toggle_estilo', 'sertanejo')">Ativado</button></div>
+        <div class="sub-linha"><div class="config-titulo">Pagode</div><button id="estilo-pagode" class="btn-toggle ativo" onclick="socket.emit('toggle_estilo', 'pagode')">Ativado</button></div>
+        <div class="sub-linha"><div class="config-titulo">MPB / Rock BR</div><button id="estilo-mpb" class="btn-toggle ativo" onclick="socket.emit('toggle_estilo', 'mpb')">Ativado</button></div>
+        
+        <div class="sub-linha"><div class="config-titulo">Funk Clássicos/Antigos</div><button id="estilo-funk-classico" class="btn-toggle ativo" onclick="socket.emit('toggle_estilo', 'funk_classico')">Ativado</button></div>
+        <div class="sub-linha"><div class="config-titulo">Funk Atuais</div><button id="estilo-funk-atual" class="btn-toggle ativo" onclick="socket.emit('toggle_estilo', 'funk_atual')">Ativado</button></div>
+        
+        <div class="sub-linha"><div class="config-titulo">Pisadinha</div><button id="estilo-pisadinha" class="btn-toggle ativo" onclick="socket.emit('toggle_estilo', 'pisadinha')">Ativado</button></div>
+        <div class="sub-linha"><div class="config-titulo">Rasq. e Lambadão</div><button id="estilo-rasqueado" class="btn-toggle ativo" onclick="socket.emit('toggle_estilo', 'rasqueado')">Ativado</button></div>
+        <div class="sub-linha"><div class="config-titulo">Gospel</div><button id="estilo-gospel" class="btn-toggle ativo" onclick="socket.emit('toggle_estilo', 'gospel')">Ativado</button></div>
+        <div class="sub-linha"><div class="config-titulo">Modão Antigas</div><button id="estilo-modao" class="btn-toggle ativo" onclick="socket.emit('toggle_estilo', 'modao')">Ativado</button></div>
+      </div>
+    </div>
+
+  </div>
+
+  <div class="bottom-nav">
+    <button class="nav-btn" id="nav-config" onclick="mudarAba('config')">
+      <span class="nav-icon">⚙️</span><span>Ajustes</span>
+    </button>
+    <button class="nav-btn active" id="nav-fila" onclick="mudarAba('fila')">
+      <span class="nav-icon">🎤</span><span>Fila</span>
+    </button>
+    <button class="nav-btn" id="nav-historico" onclick="mudarAba('historico')">
+      <span class="nav-icon">📜</span><span>Histórico</span>
+    </button>
+  </div>
+
+  <script>
+    const socket = io();
+
+    function mudarAba(abaId) {
+      document.querySelectorAll('.tab-section').forEach(aba => aba.classList.remove('active'));
+      document.querySelectorAll('.nav-btn').forEach(btn => btn.classList.remove('active'));
+      document.getElementById('aba-' + abaId).classList.add('active');
+      document.getElementById('nav-' + abaId).classList.add('active');
+      window.scrollTo(0, 0);
+    }
+
+    function atualizaBotao(id, estado) {
+      const btn = document.getElementById(id);
+      btn.innerText = estado ? "Ativado" : "Desligado";
+      btn.className = estado ? "btn-toggle ativo" : "btn-toggle inativo";
+    }
+
+    socket.on('atualizar_config', (c) => {
+      atualizaBotao('btn-alerta', c.alertaRepetidas);
+      atualizaBotao('btn-reacoes', c.reacoesAtivas);
+      atualizaBotao('btn-pular-config', c.pularAtivo);
+      atualizaBotao('btn-surpresa', c.surpresaAtivo);
+      
+      atualizaBotao('estilo-sertanejo', c.estilos.sertanejo);
+      atualizaBotao('estilo-pagode', c.estilos.pagode);
+      atualizaBotao('estilo-mpb', c.estilos.mpb);
+      atualizaBotao('estilo-funk-classico', c.estilos.funk_classico);
+      atualizaBotao('estilo-funk-atual', c.estilos.funk_atual);
+      atualizaBotao('estilo-pisadinha', c.estilos.pisadinha);
+      atualizaBotao('estilo-rasqueado', c.estilos.rasqueado);
+      atualizaBotao('estilo-gospel', c.estilos.gospel);
+      atualizaBotao('estilo-modao', c.estilos.modao);
+
+      document.getElementById('painel-sub-ritmos').style.display = c.surpresaAtivo ? 'block' : 'none';
+    });
+
+    socket.on('atualizar_fila', (fila) => { 
+      const caixa = document.getElementById('lista-admin');
+      if (fila.length === 0) { caixa.innerHTML = "<p style='color: #666; text-align: center;'>Ninguém na fila.</p>"; return; }
+      caixa.innerHTML = fila.map((item, index) => `
+        <div class="item-fila ${index === 0 ? 'tocando' : ''}">
+          <div class="info-musica">
+            <div class="nome-cantor">${index === 0 ? '🔊 TOCANDO: ' : (index) + 'º - '}${item.cantor}</div>
+            <div class="nome-musica">${item.title}</div>
+            ${item.repetida && index !== 0 ? '<span class="aviso-rep">⚠️ Já cantada hoje!</span>' : ''}
+          </div>
+          <button class="btn-remover" onclick="remover(${index})">❌ Remover</button>
+        </div>
+      `).join('');
+    });
+
+    socket.on('atualizar_historico', (historico) => { 
+      const caixaHist = document.getElementById('lista-historico');
+      if (historico.length === 0) { caixaHist.innerHTML = "<p style='text-align:center; color: #666;'>Nenhuma música cantada.</p>"; return; }
+      caixaHist.innerHTML = historico.slice().reverse().map((item) => `
+        <div class="item-fila" style="border-left: 4px solid #888;">
+          <div class="info-musica">
+            <div class="nome-cantor" style="color: #aaa;">🎤 ${item.cantor}</div>
+            <div class="nome-musica" style="color: #777;">${item.title}</div>
+          </div>
+        </div>
+      `).join('');
+    });
+
+    // ATUALIZADO AQUI: envia 'true' para acionar os 5 segundos de contagem na TV
+    function pularAtual() { if (confirm("Forçar o pulo?")) socket.emit('musica_terminou', true); }
+    function limparFila() { if (confirm("Apagar todos da fila?")) socket.emit('dj_limpar_fila'); }
+    function remover(index) { if (confirm("Remover este cantor?")) socket.emit('dj_remover_musica', index); }
+  </script>
+</body>
+</html>
