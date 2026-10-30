@@ -112,7 +112,7 @@
     
     <div id="caixa-qr">
       <h4>Cante Agora!</h4>
-      <img id="imagem-qr" src="https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=http://192.168.0.52:3000/celular.html" alt="QR Code">
+      <img id="imagem-qr" src="" alt="QR Code">
     </div>
   </div>
 
@@ -124,7 +124,7 @@
       <p class="subtitulo">Aponte a camera do seu smartphone para o QR code e adicione uma musica para cantar!</p>
       
       <div id="qr-centro">
-        <img src="https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=http://192.168.0.52:3000/celular.html" alt="QR Code Centro">
+        <img id="imagem-qr-centro" src="" alt="QR Code Centro">
       </div>
 
       <div id="caixa-relogio">
@@ -154,6 +154,11 @@
     let playerPronto = false;
     let intervaloContagem = null;
     let emPreparacao = false; 
+
+    // --- QR CODE DINÂMICO (Gera automaticamente com base no link atual do Render ou Localhost) ---
+    const urlCelular = window.location.origin + '/celular.html';
+    document.getElementById('imagem-qr').src = `https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(urlCelular)}`;
+    document.getElementById('imagem-qr-centro').src = `https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(urlCelular)}`;
 
     const playlistEspera = [
       'musicas_espera/musica1.mp3', 'musicas_espera/musica2.mp3', 'musicas_espera/musica3.mp3',
